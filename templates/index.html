@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SmartBin — Recyclability Checker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&family=Outfit:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green: #00f57a;
+      --green-dim: rgba(0,245,122,0.12);
+      --green-glow: rgba(0,245,122,0.25);
+      --red: #ff4757;
+      --red-dim: rgba(255,71,87,0.12);
+      --yellow: #ffd32a;
+      --yellow-dim: rgba(255,211,42,0.12);
+      --bg: #060a08;
+      --bg2: #0b110e;
+      --glass: rgba(255,255,255,0.03);
+      --glass-border: rgba(255,255,255,0.07);
+      --glass-hover: rgba(255,255,255,0.06);
+      --text: #e8f2ec;
+      --text-dim: #6b8a76;
+      --text-mid: #a8c4b4;
+      --syne: 'Syne', sans-serif;
+      --mono: 'IBM Plex Mono', monospace;
+      --body: 'Outfit', sans-serif;
+      --radius: 18px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--body);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 0%, rgba(0,245,122,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 90% 100%, rgba(0,180,90,0.04) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 30% at 50% 50%, rgba(0,245,122,0.02) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,245,122,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,245,122,0.025) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 24px 100px;
+    }
+
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 56px;
+      animation: fadeDown 0.8s cubic-bezier(0.16,1,0.3,1) both;
+    }
+
+    .brand { display: flex; align-items: center; gap: 14px; }
+
+    .brand-icon {
+      width: 52px; height: 52px;
+      background: linear-gradient(135deg, var(--green), #00c860);
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px;
+      box-shadow: 0 0 30px var(--green-glow);
+    }
+
+    .brand-text h1 {
+      font-family: var(--syne);
+      font-size: 1.9rem;
+      font-weight: 800;
+      color: var(--green);
+      letter-spacing: -0.5px;
+      line-height: 1;
+    }
+
+    .brand-text p {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      margin-top: 3px;
+      font-family: var(--mono);
+    }
+
+    /* Scan counter badge */
+    .scan-badge {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 40px;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      backdrop-filter: blur(12px);
+    }
+
+    .scan-badge-dot {
+      width: 8px; height: 8px;
+      background: var(--green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    .scan-badge-text {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-mid);
+    }
+
+    .scan-badge-text span {
+      color: var(--green);
+      font-weight: 500;
+    }
+
+    /* ── STATS ROW ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 32px;
+      animation: fadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.1s both;
+    }
+
+    .stat-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      backdrop-filter: blur(12px);
+      transition: border-color 0.2s;
+    }
+
+    .stat-card:hover { border-color: rgba(0,245,122,0.2); }
+
+    .stat-label {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-family: var(--syne);
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--green);
+    }
+
+    .stat-sub {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    /* ── TABS ── */
+    .tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 20px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      padding: 6px;
+      backdrop-filter: blur(12px);
+      animation: fadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.15s both;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 11px 8px;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.5px;
+      text-align: center;
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab:hover { color: var(--text); background: var(--glass-hover); }
+    .tab.active { background: var(--green); color: #000; font-weight: 500; }
+
+    /* ── PANELS ── */
+    .mode-panel { display: none; animation: fadeUp 0.4s cubic-bezier(0.16,1,0.3,1) both; }
+    .mode-panel.active { display: block; }
+
+    /* ── GLASS CARD ── */
+    .glass-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(16px);
+      overflow: hidden;
+    }
+
+    /* ── UPLOAD ZONE ── */
+    .upload-zone {
+      border: 2px dashed var(--glass-border);
+      border-radius: var(--radius);
+      padding: 56px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s;
+      background: var(--glass);
+      position: relative;
+      backdrop-filter: blur(12px);
+    }
+
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--green);
+      background: var(--green-dim);
+      box-shadow: 0 0 40px var(--green-glow);
+    }
+
+    .upload-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+
+    .upload-icon { font-size: 3rem; margin-bottom: 14px; display: block; }
+
+    .upload-text {
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
+
+    .upload-text span { color: var(--green); }
+
+    #preview-wrap { display: none; margin-top: 16px; }
+    #preview-img {
+      width: 100%; max-height: 300px; object-fit: contain;
+      border-radius: 12px; border: 1px solid var(--glass-border);
+    }
+
+    /* ── CAMERA ── */
+    .camera-wrap {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+      position: relative;
+    }
+
+    #camera-video {
+      width: 100%; max-height: 400px; display: block; object-fit: cover;
+    }
+
+    #camera-canvas { display: none; }
+
+    /* Live prediction overlay */
+    .live-overlay {
+      position: absolute;
+      top: 16px; left: 16px;
+      background: rgba(6,10,8,0.85);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .live-dot {
+      width: 7px; height: 7px;
+      background: var(--red);
+      border-radius: 50%;
+      animation: pulse 1s infinite;
+      flex-shrink: 0;
+    }
+
+    .live-dot.active { background: var(--green); }
+    .live-label { color: var(--text-mid); }
+    .live-pred { font-weight: 500; }
+    .live-pred.r { color: var(--green); }
+    .live-pred.nr { color: var(--red); }
+    .live-pred.u { color: var(--yellow); }
+
+    .camera-controls {
+      display: flex; gap: 8px; padding: 14px;
+    }
+
+    .cam-btn {
+      flex: 1; padding: 11px 8px;
+      font-family: var(--mono); font-size: 0.75rem;
+      letter-spacing: 0.3px;
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      background: transparent; color: var(--text-mid);
+      cursor: pointer; transition: all 0.2s;
+    }
+
+    .cam-btn:hover:not(:disabled) { border-color: var(--green); color: var(--green); }
+    .cam-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .cam-btn.primary { background: var(--green); color: #000; border-color: var(--green); font-weight: 500; }
+    .cam-btn.primary:hover:not(:disabled) { background: #00ff85; }
+    .cam-btn.live-active { background: rgba(255,71,87,0.15); border-color: var(--red); color: var(--red); }
+
+    #cam-snapshot-wrap { display: none; padding: 0 14px 14px; }
+    #cam-snapshot-img {
+      width: 100%; max-height: 280px; object-fit: contain;
+      border-radius: 10px; border: 1px solid var(--glass-border);
+    }
+
+    /* ── VIDEO ── */
+    .video-zone {
+      border: 2px dashed var(--glass-border);
+      border-radius: var(--radius);
+      padding: 56px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s;
+      background: var(--glass);
+      position: relative;
+      backdrop-filter: blur(12px);
+    }
+
+    .video-zone:hover { border-color: var(--green); background: var(--green-dim); }
+    .video-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+    #video-preview-wrap { display: none; margin-top: 16px; }
+    #video-preview { width: 100%; max-height: 260px; border-radius: 12px; border: 1px solid var(--glass-border); }
+
+    /* ── BUTTON ── */
+    .btn {
+      display: block; width: 100%; margin-top: 14px;
+      padding: 16px;
+      background: var(--green); color: #000;
+      font-family: var(--syne); font-size: 0.95rem; font-weight: 700;
+      letter-spacing: 1px;
+      border: none; border-radius: 12px;
+      cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 4px 20px var(--green-glow);
+    }
+
+    .btn:hover { background: #00ff85; transform: translateY(-1px); box-shadow: 0 8px 28px var(--green-glow); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* ── LOADER ── */
+    .loader {
+      display: none; text-align: center; padding: 40px;
+      font-family: var(--mono); color: var(--text-dim); font-size: 0.8rem;
+    }
+
+    .spinner {
+      width: 36px; height: 36px;
+      border: 2px solid var(--glass-border);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    /* ── RESULT ── */
+    #result, #cam-result { display: none; margin-top: 28px; animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both; }
+
+    .verdict {
+      border-radius: var(--radius);
+      padding: 32px;
+      text-align: center;
+      margin-bottom: 16px;
+      border: 1px solid;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .verdict::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    .verdict.recyclable { background: var(--green-dim); border-color: rgba(0,245,122,0.25); }
+    .verdict.recyclable::before { background: radial-gradient(ellipse at 50% 0%, rgba(0,245,122,0.15), transparent 70%); }
+    .verdict.non-recyclable { background: var(--red-dim); border-color: rgba(255,71,87,0.25); }
+    .verdict.non-recyclable::before { background: radial-gradient(ellipse at 50% 0%, rgba(255,71,87,0.15), transparent 70%); }
+    .verdict.unsure { background: var(--yellow-dim); border-color: rgba(255,211,42,0.25); }
+    .verdict.unsure::before { background: radial-gradient(ellipse at 50% 0%, rgba(255,211,42,0.15), transparent 70%); }
+
+    .verdict-icon { font-size: 3.5rem; margin-bottom: 12px; display: block; position: relative; z-index: 1; }
+    .verdict-label {
+      font-family: var(--syne); font-size: 2rem; font-weight: 800;
+      letter-spacing: -0.5px; margin-bottom: 8px; position: relative; z-index: 1;
+    }
+    .verdict.recyclable .verdict-label { color: var(--green); }
+    .verdict.non-recyclable .verdict-label { color: var(--red); }
+    .verdict.unsure .verdict-label { color: var(--yellow); }
+    .verdict-conf { font-size: 0.85rem; color: var(--text-mid); font-family: var(--mono); position: relative; z-index: 1; }
+
+    /* Confidence bars */
+    .prob-bars {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(12px);
+    }
+
+    .prob-label {
+      font-family: var(--mono); font-size: 0.68rem;
+      color: var(--text-dim); margin-bottom: 16px;
+      letter-spacing: 1px; text-transform: uppercase;
+    }
+
+    .prob-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .prob-row:last-child { margin-bottom: 0; }
+    .prob-name { font-size: 0.82rem; width: 145px; flex-shrink: 0; color: var(--text-mid); }
+    .prob-bar-wrap { flex: 1; background: rgba(255,255,255,0.05); border-radius: 4px; height: 7px; overflow: hidden; }
+    .prob-bar { height: 100%; border-radius: 4px; transition: width 1s cubic-bezier(0.4,0,0.2,1); }
+    .prob-bar.green { background: linear-gradient(90deg, var(--green), #00c860); }
+    .prob-bar.red   { background: linear-gradient(90deg, var(--red), #ff6b6b); }
+    .prob-bar.yellow{ background: linear-gradient(90deg, var(--yellow), #ffb300); }
+    .prob-pct { font-family: var(--mono); font-size: 0.76rem; width: 46px; text-align: right; color: var(--text-dim); }
+
+    /* Images grid */
+    .images-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+
+    .img-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px; overflow: hidden;
+      backdrop-filter: blur(12px);
+    }
+
+    .img-card-label {
+      font-family: var(--mono); font-size: 0.65rem;
+      letter-spacing: 1px; text-transform: uppercase;
+      color: var(--text-dim); padding: 10px 14px;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .img-card img { width: 100%; display: block; object-fit: contain; max-height: 220px; }
+
+    /* NOT SURE banner */
+    .unsure-banner {
+      display: none;
+      background: rgba(255,211,42,0.06);
+      border: 1px solid rgba(255,211,42,0.2);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+    }
+
+    .unsure-banner-inner { display: flex; align-items: flex-start; gap: 12px; }
+    .unsure-icon { font-size: 1.3rem; flex-shrink: 0; }
+    .unsure-title { font-family: var(--mono); font-size: 0.8rem; color: var(--yellow); font-weight: 500; margin-bottom: 4px; }
+    .unsure-text { font-size: 0.8rem; color: var(--text-dim); line-height: 1.5; }
+
+    /* ── TIPS ── */
+    .tips-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(12px);
+    }
+
+    .tips-title {
+      font-family: var(--mono); font-size: 0.68rem;
+      letter-spacing: 1px; text-transform: uppercase;
+      color: var(--text-dim); margin-bottom: 16px;
+    }
+
+    .tips-list { list-style: none; }
+    .tips-list li {
+      font-size: 0.83rem; color: var(--text-mid);
+      padding: 10px 0; border-bottom: 1px solid var(--glass-border);
+      display: flex; align-items: flex-start; gap: 10px; line-height: 1.55;
+    }
+    .tips-list li:last-child { border-bottom: none; }
+    .tip-icon { flex-shrink: 0; font-size: 1rem; }
+
+
+    /* ── SCAN HISTORY ── */
+    .history-section {
+      margin-top: 48px;
+      animation: fadeUp 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s both;
+    }
+
+    .history-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .history-title {
+      font-family: var(--syne); font-size: 1rem; font-weight: 700;
+      color: var(--text);
+    }
+
+    .history-clear {
+      background: transparent;
+      border: 1px solid var(--glass-border);
+      color: var(--text-dim);
+      font-family: var(--mono); font-size: 0.7rem;
+      padding: 6px 12px; border-radius: 8px;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .history-clear:hover { border-color: var(--red); color: var(--red); }
+
+    .history-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .history-item {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      display: flex; align-items: center; gap: 14px;
+      backdrop-filter: blur(12px);
+      transition: border-color 0.2s;
+      animation: fadeUp 0.3s cubic-bezier(0.16,1,0.3,1) both;
+    }
+
+    .history-item:hover { border-color: rgba(0,245,122,0.15); }
+    .history-item.r { border-left: 3px solid var(--green); }
+    .history-item.nr { border-left: 3px solid var(--red); }
+    .history-item.u { border-left: 3px solid var(--yellow); }
+
+    .history-thumb {
+      width: 44px; height: 44px; border-radius: 8px;
+      object-fit: cover; flex-shrink: 0;
+      border: 1px solid var(--glass-border);
+    }
+
+    .history-info { flex: 1; min-width: 0; }
+
+    .history-label {
+      font-family: var(--syne); font-size: 0.85rem; font-weight: 600;
+    }
+    .history-label.r { color: var(--green); }
+    .history-label.nr { color: var(--red); }
+    .history-label.u { color: var(--yellow); }
+
+    .history-meta {
+      font-family: var(--mono); font-size: 0.68rem;
+      color: var(--text-dim); margin-top: 2px;
+    }
+
+    .history-conf {
+      font-family: var(--mono); font-size: 0.8rem;
+      color: var(--text-dim); flex-shrink: 0;
+    }
+
+    .history-empty {
+      text-align: center; padding: 32px;
+      font-family: var(--mono); font-size: 0.8rem;
+      color: var(--text-dim);
+      background: var(--glass);
+      border: 1px dashed var(--glass-border);
+      border-radius: var(--radius);
+    }
+
+    /* ── VIDEO RESULT ── */
+    #video-result { display: none; margin-top: 28px; animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both; }
+
+    .video-overall {
+      border-radius: var(--radius); padding: 28px;
+      text-align: center; margin-bottom: 16px; border: 1px solid;
+    }
+
+    .video-overall.recyclable { background: var(--green-dim); border-color: rgba(0,245,122,0.25); }
+    .video-overall.non-recyclable { background: var(--red-dim); border-color: rgba(255,71,87,0.25); }
+    .video-overall-label { font-family: var(--syne); font-size: 1.6rem; font-weight: 800; }
+    .video-overall.recyclable .video-overall-label { color: var(--green); }
+    .video-overall.non-recyclable .video-overall-label { color: var(--red); }
+    .video-stats { font-size: 0.82rem; color: var(--text-dim); margin-top: 8px; font-family: var(--mono); }
+
+    .frames-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+
+    .frame-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px; overflow: hidden;
+      backdrop-filter: blur(12px);
+    }
+
+    .frame-card.recyclable { border-color: rgba(0,245,122,0.2); }
+    .frame-card.non-recyclable { border-color: rgba(255,71,87,0.2); }
+
+    .frame-header {
+      padding: 8px 12px;
+      font-family: var(--mono); font-size: 0.68rem;
+      display: flex; justify-content: space-between;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .frame-header .ts { color: var(--text-dim); }
+    .frame-header .lbl { font-weight: 500; }
+    .frame-header .lbl.r { color: var(--green); }
+    .frame-header .lbl.nr { color: var(--red); }
+    .frame-card img { width: 100%; display: block; object-fit: cover; max-height: 150px; }
+    .frame-conf { padding: 6px 12px; font-family: var(--mono); font-size: 0.68rem; color: var(--text-dim); }
+
+    /* Reset */
+    .reset-btn {
+      display: block; margin: 16px auto 0;
+      background: transparent;
+      border: 1px solid var(--glass-border);
+      color: var(--text-dim);
+      font-family: var(--mono); font-size: 0.75rem;
+      padding: 10px 24px; border-radius: 8px;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .reset-btn:hover { border-color: var(--green); color: var(--green); }
+
+    footer {
+      text-align: center; margin-top: 60px;
+      font-size: 0.7rem; color: var(--text-dim);
+      font-family: var(--mono);
+    }
+
+    @keyframes fadeDown { from { opacity:0; transform:translateY(-24px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeUp   { from { opacity:0; transform:translateY(20px);  } to { opacity:1; transform:translateY(0); } }
+    @keyframes spin     { to { transform:rotate(360deg); } }
+    @keyframes pulse    { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+    @media (max-width: 600px) {
+      .stats-row { grid-template-columns: 1fr 1fr; }
+      .stats-row .stat-card:last-child { grid-column: span 2; }
+      .images-grid { grid-template-columns: 1fr; }
+      .impact-grid { grid-template-columns: repeat(3,1fr); }
+      header { flex-direction: column; gap: 16px; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ── HEADER ── -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">♻️</div>
+      <div class="brand-text">
+        <h1>SmartBin</h1>
+        <p>AI-powered recyclability checker</p>
+      </div>
+    </div>
+    <div class="scan-badge">
+      <div class="scan-badge-dot"></div>
+      <div class="scan-badge-text">Session scans: <span id="session-count">0</span></div>
+    </div>
+  </header>
+
+  <!-- ── STATS ROW ── -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">♻ Recyclable</div>
+      <div class="stat-value" id="stat-recyclable">0</div>
+      <div class="stat-sub">items scanned</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">🗑 Non-recyclable</div>
+      <div class="stat-value" id="stat-nonrecyclable" style="color:var(--red)">0</div>
+      <div class="stat-sub">items scanned</div>
+    </div>
+  </div>
+
+  <!-- ── TABS ── -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('image')">📷 IMAGE</button>
+    <button class="tab"        onclick="switchTab('camera')">🎥 CAMERA</button>
+    <button class="tab"        onclick="switchTab('video')">🎬 VIDEO</button>
+  </div>
+
+  <!-- ── IMAGE MODE ── -->
+  <div class="mode-panel active" id="panel-image">
+    <div class="upload-zone" id="dropzone">
+      <input type="file" id="fileInput" accept="image/*"/>
+      <span class="upload-icon">📷</span>
+      <p class="upload-text">Drop an image here or <span>click to browse</span></p>
+    </div>
+    <div id="preview-wrap"><img id="preview-img" src="" alt="Preview"/></div>
+    <button class="btn" id="analyseBtn" disabled>ANALYSE IMAGE</button>
+    <div class="loader" id="loader"><div class="spinner"></div>Analysing image...</div>
+    <div id="result">
+      <div class="verdict" id="verdict">
+        <span class="verdict-icon" id="verdict-icon"></span>
+        <div class="verdict-label" id="verdict-label"></div>
+        <div class="verdict-conf"  id="verdict-conf"></div>
+      </div>
+      <div class="prob-bars">
+        <div class="prob-label">Confidence Breakdown</div>
+        <div class="prob-row">
+          <span class="prob-name">♻️ Recyclable</span>
+          <div class="prob-bar-wrap"><div class="prob-bar green" id="bar-r" style="width:0%"></div></div>
+          <span class="prob-pct" id="pct-r">0%</span>
+        </div>
+        <div class="prob-row">
+          <span class="prob-name">🗑️ Non-recyclable</span>
+          <div class="prob-bar-wrap"><div class="prob-bar red" id="bar-nr" style="width:0%"></div></div>
+          <span class="prob-pct" id="pct-nr">0%</span>
+        </div>
+        <div class="prob-row">
+          <span class="prob-name">🤔 Unknown</span>
+          <div class="prob-bar-wrap"><div class="prob-bar yellow" id="bar-u" style="width:0%"></div></div>
+          <span class="prob-pct" id="pct-u">0%</span>
+        </div>
+      </div>
+      <div class="unsure-banner" id="unsure-banner">
+        <div class="unsure-banner-inner">
+          <span class="unsure-icon">⚠️</span>
+          <div>
+            <div class="unsure-title">LOW CONFIDENCE PREDICTION</div>
+            <div class="unsure-text">The model is not confident about this item. Try a clearer photo with better lighting and less background clutter.</div>
+          </div>
+        </div>
+      </div>
+      <div class="tips-card" id="tips-card" style="display:none">
+        <div class="tips-title">♻️ Recycling Guidance</div>
+        <ul class="tips-list" id="tips-list"></ul>
+      </div>
+      <div class="images-grid">
+        <div class="img-card"><div class="img-card-label">Original Image</div><img id="orig-img" src="" alt="Original"/></div>
+        <div class="img-card"><div class="img-card-label">Grad-CAM Heatmap</div><img id="heat-img" src="" alt="Heatmap"/></div>
+      </div>
+      <button class="reset-btn" id="resetBtn">↩ Analyse another item</button>
+    </div>
+  </div>
+
+  <!-- ── CAMERA MODE ── -->
+  <div class="mode-panel" id="panel-camera">
+    <div class="camera-wrap">
+      <video id="camera-video" autoplay playsinline muted></video>
+      <canvas id="camera-canvas"></canvas>
+      <div class="live-overlay" id="live-overlay">
+        <div class="live-dot" id="live-dot"></div>
+        <span class="live-label">LIVE:</span>
+        <span class="live-pred" id="live-pred">—</span>
+        <span class="live-label" id="live-conf"></span>
+      </div>
+      <div class="camera-controls">
+        <button class="cam-btn" id="startCamBtn" onclick="startCamera()">▶ Start</button>
+        <button class="cam-btn" id="liveBtn" onclick="toggleLive()" disabled>⚡ Live</button>
+        <button class="cam-btn primary" id="snapBtn" onclick="takeSnapshot()" disabled>📸 Capture</button>
+        <button class="cam-btn" id="stopCamBtn" onclick="stopCamera()" disabled>■ Stop</button>
+      </div>
+      <div id="cam-snapshot-wrap">
+        <img id="cam-snapshot-img" src="" alt="Snapshot"/>
+      </div>
+    </div>
+    <button class="btn" id="analyseCamBtn" disabled>ANALYSE SNAPSHOT</button>
+    <div class="loader" id="cam-loader"><div class="spinner"></div>Analysing snapshot...</div>
+    <div id="cam-result">
+      <div class="verdict" id="cam-verdict">
+        <span class="verdict-icon" id="cam-verdict-icon"></span>
+        <div class="verdict-label" id="cam-verdict-label"></div>
+        <div class="verdict-conf"  id="cam-verdict-conf"></div>
+      </div>
+      <div class="prob-bars">
+        <div class="prob-label">Confidence Breakdown</div>
+        <div class="prob-row">
+          <span class="prob-name">♻️ Recyclable</span>
+          <div class="prob-bar-wrap"><div class="prob-bar green" id="cam-bar-r" style="width:0%"></div></div>
+          <span class="prob-pct" id="cam-pct-r">0%</span>
+        </div>
+        <div class="prob-row">
+          <span class="prob-name">🗑️ Non-recyclable</span>
+          <div class="prob-bar-wrap"><div class="prob-bar red" id="cam-bar-nr" style="width:0%"></div></div>
+          <span class="prob-pct" id="cam-pct-nr">0%</span>
+        </div>
+        <div class="prob-row">
+          <span class="prob-name">🤔 Unknown</span>
+          <div class="prob-bar-wrap"><div class="prob-bar yellow" id="cam-bar-u" style="width:0%"></div></div>
+          <span class="prob-pct" id="cam-pct-u">0%</span>
+        </div>
+      </div>
+      <div class="unsure-banner" id="cam-unsure-banner">
+        <div class="unsure-banner-inner">
+          <span class="unsure-icon">⚠️</span>
+          <div>
+            <div class="unsure-title">LOW CONFIDENCE PREDICTION</div>
+            <div class="unsure-text">Try a clearer snapshot with better lighting and less background clutter.</div>
+          </div>
+        </div>
+      </div>
+      <div class="tips-card" id="cam-tips-card" style="display:none">
+        <div class="tips-title">♻️ Recycling Guidance</div>
+        <ul class="tips-list" id="cam-tips-list"></ul>
+      </div>
+      <div class="images-grid">
+        <div class="img-card"><div class="img-card-label">Captured Image</div><img id="cam-orig-img" src="" alt="Captured"/></div>
+        <div class="img-card"><div class="img-card-label">Grad-CAM Heatmap</div><img id="cam-heat-img" src="" alt="Heatmap"/></div>
+      </div>
+      <button class="reset-btn" onclick="resetCamera()">↩ Take another snapshot</button>
+    </div>
+  </div>
+
+  <!-- ── VIDEO MODE ── -->
+  <div class="mode-panel" id="panel-video">
+    <div class="video-zone">
+      <input type="file" id="videoInput" accept="video/*"/>
+      <span class="upload-icon">🎬</span>
+      <p class="upload-text">Drop a video here or <span>click to browse</span><br/>
+      <small style="font-size:0.72rem;margin-top:6px;display:block;color:var(--text-dim)">MP4, MOV, AVI · Up to 8 frames analysed</small></p>
+    </div>
+    <div id="video-preview-wrap"><video id="video-preview" controls></video></div>
+    <button class="btn" id="analyseVideoBtn" disabled>ANALYSE VIDEO</button>
+    <div class="loader" id="video-loader"><div class="spinner"></div>Analysing video frames...</div>
+    <div id="video-result">
+      <div class="video-overall" id="video-overall">
+        <div class="verdict-icon" id="video-overall-icon"></div>
+        <div class="video-overall-label" id="video-overall-label"></div>
+        <div class="video-stats" id="video-stats"></div>
+      </div>
+      <p style="font-family:var(--mono);font-size:0.68rem;color:var(--text-dim);margin-bottom:12px;letter-spacing:1px;">FRAME-BY-FRAME ANALYSIS</p>
+      <div class="frames-grid" id="frames-grid"></div>
+      <button class="reset-btn" onclick="resetVideo()">↩ Analyse another video</button>
+    </div>
+  </div>
+
+  <!-- ── SCAN HISTORY ── -->
+  <div class="history-section">
+    <div class="history-header">
+      <div class="history-title">Recent Scans</div>
+      <button class="history-clear" onclick="clearHistory()">Clear history</button>
+    </div>
+    <div id="history-list">
+      <div class="history-empty">No scans yet — analyse an item to get started</div>
+    </div>
+  </div>
+
+  <footer>SmartBin · MobileNetV2 · Grad-CAM · Built for sustainable waste sorting · University of West London</footer>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+let sessionCount   = 0;
+let statRecyclable = 0;
+let statNonR       = 0;
+let scanHistory    = [];
+let liveInterval   = null;
+let liveActive     = false;
+
+// ── Tips data ──────────────────────────────────────────────────────────────
+const TIPS = {
+  recyclable: [
+    { icon: "🧹", text: "Rinse containers to remove food residue — contaminated items can cause entire recycling loads to be rejected." },
+    { icon: "🏷️", text: "Remove lids from bottles and jars — they are often made from different materials and should be separated." },
+    { icon: "📦", text: "Flatten cardboard boxes to save space in your recycling bin and make collection more efficient." },
+    { icon: "🔢", text: "Check the recycling symbol number on plastics — not all plastic types are accepted by every council." },
+    { icon: "🗺️", text: "Recycling rules vary by local authority — check your council's website for what is accepted in your area." },
+  ],
+  non_recyclable: [
+    { icon: "🚫", text: "This item cannot go in your household recycling bin — place it in your general waste bin." },
+    { icon: "🔋", text: "Batteries and electronics should be taken to a dedicated recycling point at a supermarket or recycling centre." },
+    { icon: "🏪", text: "Many supermarkets have soft plastic recycling drop-off points for items like bags and wrappers." },
+    { icon: "♻️", text: "Check if your local recycling centre accepts this item — many materials can still be recycled at the tip." },
+    { icon: "🌱", text: "Reducing consumption is the most effective way to cut waste — consider reusable alternatives where possible." },
+  ]
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function updateStats(isRecyclable, isUnknown) {
+  if (isUnknown) return;
+  sessionCount++;
+  document.getElementById('session-count').textContent = sessionCount;
+  if (isRecyclable) {
+    statRecyclable++;
+    document.getElementById('stat-recyclable').textContent = statRecyclable;
+  } else {
+    statNonR++;
+    document.getElementById('stat-nonrecyclable').textContent = statNonR;
+  }
+}
+
+function addToHistory(data, thumbSrc) {
+  const isUnknown = data.unknown;
+  const lowConf   = data.confidence < 75;
+  const unsure    = isUnknown || lowConf;
+  const cls       = unsure ? 'u' : (data.recyclable ? 'r' : 'nr');
+  const label     = unsure ? 'NOT SURE' : (data.recyclable ? 'RECYCLABLE' : 'NON-RECYCLABLE');
+  const now       = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+
+  scanHistory.unshift({ cls, label, conf: data.confidence, thumb: thumbSrc, time: now });
+  if (scanHistory.length > 6) scanHistory.pop();
+  renderHistory();
+}
+
+function renderHistory() {
+  const el = document.getElementById('history-list');
+  if (scanHistory.length === 0) {
+    el.innerHTML = '<div class="history-empty">No scans yet — analyse an item to get started</div>';
+    return;
+  }
+  el.innerHTML = scanHistory.map((s, i) => `
+    <div class="history-item ${s.cls}" style="animation-delay:${i*0.05}s">
+      <img class="history-thumb" src="${s.thumb}" alt="scan"/>
+      <div class="history-info">
+        <div class="history-label ${s.cls}">${s.label}</div>
+        <div class="history-meta">${s.time}</div>
+      </div>
+      <div class="history-conf">${s.conf}%</div>
+    </div>
+  `).join('');
+}
+
+function clearHistory() {
+  scanHistory = [];
+  renderHistory();
+}
+
+function showTips(isRecyclable, listId, cardId) {
+  if (isRecyclable === null) { document.getElementById(cardId).style.display='none'; return; }
+  const tips = isRecyclable ? TIPS.recyclable : TIPS.non_recyclable;
+  document.getElementById(listId).innerHTML = tips.map(t =>
+    `<li><span class="tip-icon">${t.icon}</span><span>${t.text}</span></li>`
+  ).join('');
+  document.getElementById(cardId).style.display = 'block';
+}
+
+function showImageResult(data, ids, thumbSrc) {
+  const isUnknown = data.unknown;
+  const lowConf   = data.confidence < 75;
+  const unsure    = isUnknown || lowConf;
+  const isR       = data.recyclable && !unsure;
+
+  const verdict = document.getElementById(ids.verdict);
+  verdict.className = 'verdict ' + (unsure ? 'unsure' : (isR ? 'recyclable' : 'non-recyclable'));
+  document.getElementById(ids.icon).textContent  = unsure ? '🤔' : (isR ? '♻️' : '🗑️');
+  document.getElementById(ids.label).textContent = unsure ? 'NOT SURE' : (isR ? 'RECYCLABLE' : 'NON-RECYCLABLE');
+  document.getElementById(ids.conf).textContent  = 'Confidence: ' + data.confidence + '%';
+
+  setTimeout(() => {
+    document.getElementById(ids.barR).style.width  = data.probs.recyclable + '%';
+    document.getElementById(ids.barNR).style.width = data.probs.non_recyclable + '%';
+    document.getElementById(ids.barU).style.width  = (data.probs.unknown || 0) + '%';
+  }, 100);
+
+  document.getElementById(ids.pctR).textContent  = data.probs.recyclable + '%';
+  document.getElementById(ids.pctNR).textContent = data.probs.non_recyclable + '%';
+  document.getElementById(ids.pctU).textContent  = (data.probs.unknown || 0) + '%';
+  document.getElementById(ids.orig).src   = 'data:image/png;base64,' + data.original;
+  document.getElementById(ids.heat).src   = 'data:image/png;base64,' + data.heatmap;
+  document.getElementById(ids.banner).style.display = unsure ? 'block' : 'none';
+
+  showTips(unsure ? null : data.recyclable, ids.tipsList, ids.tipsCard);
+  updateStats(data.recyclable, isUnknown || lowConf);
+  if (thumbSrc) addToHistory(data, thumbSrc);
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────
+function switchTab(mode) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['image','camera','video'][i] === mode);
+  });
+  document.querySelectorAll('.mode-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + mode).classList.add('active');
+  if (mode !== 'camera') stopCamera();
+}
+
+// ── IMAGE MODE ────────────────────────────────────────────────────────────
+const fileInput   = document.getElementById('fileInput');
+const dropzone    = document.getElementById('dropzone');
+const previewWrap = document.getElementById('preview-wrap');
+const previewImg  = document.getElementById('preview-img');
+const analyseBtn  = document.getElementById('analyseBtn');
+const loader      = document.getElementById('loader');
+const result      = document.getElementById('result');
+let selectedFile  = null;
+
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) handleImageFile(f);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleImageFile(fileInput.files[0]); });
+
+function handleImageFile(file) {
+  selectedFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    previewImg.src = e.target.result;
+    previewWrap.style.display = 'block';
+    analyseBtn.disabled = false;
+    result.style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+analyseBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  analyseBtn.disabled = true; loader.style.display = 'block'; result.style.display = 'none';
+  const fd = new FormData(); fd.append('file', selectedFile);
+  try {
+    const res  = await fetch('/predict', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.error) { alert('Error: ' + data.error); return; }
+    showImageResult(data, {
+      verdict:'verdict', icon:'verdict-icon', label:'verdict-label', conf:'verdict-conf',
+      barR:'bar-r', barNR:'bar-nr', barU:'bar-u', pctR:'pct-r', pctNR:'pct-nr', pctU:'pct-u',
+      orig:'orig-img', heat:'heat-img', banner:'unsure-banner',
+      tipsList:'tips-list', tipsCard:'tips-card'
+    }, previewImg.src);
+    result.style.display = 'block';
+  } catch(e) { alert('Something went wrong.'); }
+  finally { loader.style.display = 'none'; analyseBtn.disabled = false; }
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  selectedFile = null; fileInput.value = '';
+  previewWrap.style.display = 'none'; result.style.display = 'none'; analyseBtn.disabled = true;
+});
+
+// ── CAMERA MODE ───────────────────────────────────────────────────────────
+let stream = null, snapshotBlob = null;
+
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    document.getElementById('camera-video').srcObject = stream;
+    document.getElementById('snapBtn').disabled    = false;
+    document.getElementById('stopCamBtn').disabled = false;
+    document.getElementById('liveBtn').disabled    = false;
+    document.getElementById('startCamBtn').disabled = true;
+    document.getElementById('cam-result').style.display = 'none';
+    document.getElementById('cam-snapshot-wrap').style.display = 'none';
+    document.getElementById('analyseCamBtn').disabled = true;
+  } catch(e) {
+    alert('Camera access denied or not available.');
+  }
+}
+
+function stopCamera() {
+  stopLive();
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  document.getElementById('snapBtn').disabled    = true;
+  document.getElementById('stopCamBtn').disabled = true;
+  document.getElementById('liveBtn').disabled    = true;
+  document.getElementById('startCamBtn').disabled = false;
+  document.getElementById('live-overlay').style.display = 'none';
+}
+
+// Live prediction
+function toggleLive() {
+  if (liveActive) stopLive(); else startLive();
+}
+
+function startLive() {
+  liveActive = true;
+  const btn = document.getElementById('liveBtn');
+  btn.textContent = '⏹ Stop Live';
+  btn.classList.add('live-active');
+  document.getElementById('live-overlay').style.display = 'flex';
+  document.getElementById('live-dot').classList.add('active');
+  runLivePrediction();
+  liveInterval = setInterval(runLivePrediction, 2500);
+}
+
+function stopLive() {
+  liveActive = false;
+  clearInterval(liveInterval);
+  const btn = document.getElementById('liveBtn');
+  if (btn) { btn.textContent = '⚡ Live'; btn.classList.remove('live-active'); }
+  document.getElementById('live-overlay').style.display = 'none';
+}
+
+async function runLivePrediction() {
+  const video = document.getElementById('camera-video');
+  if (!video.srcObject) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  canvas.toBlob(async blob => {
+    const fd = new FormData(); fd.append('file', blob, 'live.jpg');
+    try {
+      const res  = await fetch('/predict', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.error) return;
+      const isUnknown = data.unknown;
+      const lowConf   = data.confidence < 75;
+      const unsure    = isUnknown || lowConf;
+      const pred = document.getElementById('live-pred');
+      const conf = document.getElementById('live-conf');
+      if (unsure) { pred.textContent = 'NOT SURE'; pred.className = 'live-pred u'; }
+      else if (data.recyclable) { pred.textContent = 'RECYCLABLE'; pred.className = 'live-pred r'; }
+      else { pred.textContent = 'NON-RECYCLABLE'; pred.className = 'live-pred nr'; }
+      conf.textContent = data.confidence + '%';
+    } catch(e) {}
+  }, 'image/jpeg', 0.7);
+}
+
+function takeSnapshot() {
+  const video  = document.getElementById('camera-video');
+  const canvas = document.getElementById('camera-canvas');
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+  document.getElementById('cam-snapshot-img').src = dataUrl;
+  document.getElementById('cam-snapshot-wrap').style.display = 'block';
+  document.getElementById('analyseCamBtn').disabled = false;
+  document.getElementById('cam-result').style.display = 'none';
+  canvas.toBlob(blob => { snapshotBlob = blob; }, 'image/jpeg', 0.92);
+}
+
+function resetCamera() {
+  snapshotBlob = null;
+  document.getElementById('cam-snapshot-wrap').style.display = 'none';
+  document.getElementById('cam-result').style.display = 'none';
+  document.getElementById('analyseCamBtn').disabled = true;
+}
+
+document.getElementById('analyseCamBtn').addEventListener('click', async () => {
+  if (!snapshotBlob) return;
+  const btn = document.getElementById('analyseCamBtn');
+  const camLoader = document.getElementById('cam-loader');
+  btn.disabled = true; camLoader.style.display = 'block';
+  document.getElementById('cam-result').style.display = 'none';
+  const fd = new FormData(); fd.append('file', snapshotBlob, 'snapshot.jpg');
+  try {
+    const res  = await fetch('/predict', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.error) { alert('Error: ' + data.error); return; }
+    showImageResult(data, {
+      verdict:'cam-verdict', icon:'cam-verdict-icon', label:'cam-verdict-label', conf:'cam-verdict-conf',
+      barR:'cam-bar-r', barNR:'cam-bar-nr', barU:'cam-bar-u', pctR:'cam-pct-r', pctNR:'cam-pct-nr', pctU:'cam-pct-u',
+      orig:'cam-orig-img', heat:'cam-heat-img', banner:'cam-unsure-banner',
+      tipsList:'cam-tips-list', tipsCard:'cam-tips-card'
+    }, document.getElementById('cam-snapshot-img').src);
+    document.getElementById('cam-result').style.display = 'block';
+  } catch(e) { alert('Something went wrong.'); }
+  finally { camLoader.style.display = 'none'; btn.disabled = false; }
+});
+
+// ── VIDEO MODE ────────────────────────────────────────────────────────────
+const videoInput      = document.getElementById('videoInput');
+const analyseVideoBtn = document.getElementById('analyseVideoBtn');
+let selectedVideo     = null;
+
+videoInput.addEventListener('change', () => {
+  if (!videoInput.files[0]) return;
+  selectedVideo = videoInput.files[0];
+  const vp = document.getElementById('video-preview');
+  vp.src = URL.createObjectURL(selectedVideo);
+  document.getElementById('video-preview-wrap').style.display = 'block';
+  analyseVideoBtn.disabled = false;
+  document.getElementById('video-result').style.display = 'none';
+});
+
+analyseVideoBtn.addEventListener('click', async () => {
+  if (!selectedVideo) return;
+  analyseVideoBtn.disabled = true;
+  document.getElementById('video-loader').style.display = 'block';
+  document.getElementById('video-result').style.display = 'none';
+  const fd = new FormData(); fd.append('file', selectedVideo);
+  try {
+    const res  = await fetch('/predict_video', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.error) { alert('Error: ' + data.error); return; }
+    const isR = data.overall === 'recyclable';
+    const overall = document.getElementById('video-overall');
+    overall.className = 'video-overall ' + (isR ? 'recyclable' : 'non-recyclable');
+    document.getElementById('video-overall-icon').textContent  = isR ? '♻️' : '🗑️';
+    document.getElementById('video-overall-label').textContent = isR ? 'MOSTLY RECYCLABLE' : 'MOSTLY NON-RECYCLABLE';
+    document.getElementById('video-stats').textContent =
+      `${data.n_recyclable} of ${data.n_total} frames recyclable · ${data.duration}s video`;
+    const grid = document.getElementById('frames-grid');
+    grid.innerHTML = '';
+    data.frames.forEach(f => {
+      const card = document.createElement('div');
+      card.className = 'frame-card ' + (f.recyclable ? 'recyclable' : 'non-recyclable');
+      card.innerHTML = `
+        <div class="frame-header">
+          <span class="ts">${f.timestamp}s</span>
+          <span class="lbl ${f.recyclable ? 'r' : 'nr'}">${f.recyclable ? '♻ RECYCLE' : '🗑 NON-RECYCLE'}</span>
+        </div>
+        <img src="data:image/png;base64,${f.heatmap}" alt="frame"/>
+        <div class="frame-conf">Confidence: ${f.confidence}%</div>`;
+      grid.appendChild(card);
+    });
+    document.getElementById('video-result').style.display = 'block';
+  } catch(e) { alert('Something went wrong.'); }
+  finally { document.getElementById('video-loader').style.display = 'none'; analyseVideoBtn.disabled = false; }
+});
+
+function resetVideo() {
+  selectedVideo = null; videoInput.value = '';
+  document.getElementById('video-preview-wrap').style.display = 'none';
+  document.getElementById('video-result').style.display = 'none';
+  analyseVideoBtn.disabled = true;
+}
+</script>
+</body>
+</html>
